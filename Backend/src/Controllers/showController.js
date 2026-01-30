@@ -2,7 +2,7 @@ const Show = require('../models/Show');
 const Movie = require('../models/Movie');
 const Theatre = require('../models/Theatre');
 
-// Helper function to generate seat array
+
 const generateSeats = (rows, columns) => {
   const seats = [];
   for (let i = 0; i < rows; i++) {
@@ -14,9 +14,7 @@ const generateSeats = (rows, columns) => {
   return seats;
 };
 
-// @desc    Get all shows
-// @route   GET /api/shows
-// @access  Public
+
 exports.getAllShows = async (req, res) => {
   try {
     const { movieId, theatreId, date, city } = req.query;
@@ -67,9 +65,7 @@ exports.getAllShows = async (req, res) => {
   }
 };
 
-// @desc    Get single show
-// @route   GET /api/shows/:id
-// @access  Public
+
 exports.getShow = async (req, res) => {
   try {
     const show = await Show.findById(req.params.id)
@@ -95,9 +91,7 @@ exports.getShow = async (req, res) => {
   }
 };
 
-// @desc    Create new show
-// @route   POST /api/shows
-// @access  Private/Admin
+
 exports.createShow = async (req, res) => {
   try {
     const { movie, theatre, screenNumber, showDate, showTime, pricing } = req.body;
@@ -163,9 +157,7 @@ exports.createShow = async (req, res) => {
   }
 };
 
-// @desc    Update show
-// @route   PUT /api/shows/:id
-// @access  Private/Admin
+
 exports.updateShow = async (req, res) => {
   try {
     const show = await Show.findByIdAndUpdate(
@@ -196,9 +188,7 @@ exports.updateShow = async (req, res) => {
   }
 };
 
-// @desc    Delete show
-// @route   DELETE /api/shows/:id
-// @access  Private/Admin
+
 exports.deleteShow = async (req, res) => {
   try {
     const show = await Show.findByIdAndDelete(req.params.id);
@@ -223,9 +213,6 @@ exports.deleteShow = async (req, res) => {
   }
 };
 
-// @desc    Get available seats for a show
-// @route   GET /api/shows/:id/seats
-// @access  Public
 exports.getShowSeats = async (req, res) => {
   try {
     const show = await Show.findById(req.params.id).populate('theatre');

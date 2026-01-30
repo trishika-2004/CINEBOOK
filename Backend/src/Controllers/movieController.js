@@ -1,8 +1,6 @@
 const Movie = require('../models/Movie');
 
-// @desc    Get all movies
-// @route   GET /api/movies
-// @access  Public
+
 exports.getAllMovies = async (req, res) => {
   try {
     const { genre, language, search } = req.query;
@@ -36,9 +34,7 @@ exports.getAllMovies = async (req, res) => {
   }
 };
 
-// @desc    Get single movie
-// @route   GET /api/movies/:id
-// @access  Public
+
 exports.getMovie = async (req, res) => {
   try {
     const movie = await Movie.findById(req.params.id);
@@ -62,9 +58,7 @@ exports.getMovie = async (req, res) => {
   }
 };
 
-// @desc    Create new movie
-// @route   POST /api/movies
-// @access  Private/Admin
+
 exports.createMovie = async (req, res) => {
   try {
     const movie = await Movie.create(req.body);
@@ -81,9 +75,7 @@ exports.createMovie = async (req, res) => {
   }
 };
 
-// @desc    Update movie
-// @route   PUT /api/movies/:id
-// @access  Private/Admin
+
 exports.updateMovie = async (req, res) => {
   try {
     const movie = await Movie.findByIdAndUpdate(req.params.id, req.body, {
@@ -110,9 +102,7 @@ exports.updateMovie = async (req, res) => {
   }
 };
 
-// @desc    Delete movie
-// @route   DELETE /api/movies/:id
-// @access  Private/Admin
+
 exports.deleteMovie = async (req, res) => {
   try {
     const movie = await Movie.findByIdAndUpdate(
@@ -140,9 +130,7 @@ exports.deleteMovie = async (req, res) => {
   }
 };
 
-// @desc    Add movie review
-// @route   POST /api/movies/:id/reviews
-// @access  Private
+
 exports.addReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
@@ -155,7 +143,6 @@ exports.addReview = async (req, res) => {
       });
     }
 
-    // Check if user already reviewed
     const alreadyReviewed = movie.reviews.find(
       r => r.user.toString() === req.user.id.toString()
     );
@@ -175,7 +162,6 @@ exports.addReview = async (req, res) => {
 
     movie.reviews.push(review);
 
-    // Update average rating
     movie.rating = movie.reviews.reduce((acc, item) => item.rating + acc, 0) / movie.reviews.length;
 
     await movie.save();

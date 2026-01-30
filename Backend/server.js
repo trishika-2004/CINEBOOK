@@ -16,6 +16,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const movieRoutes = require('./src/routes/movieRoutes');
 const theatreRoutes = require('./src/routes/theatreRoutes');
 const showRoutes = require('./src/routes/showRoutes');
+const bookingRoutes = require('./src/routes/bookingRoutes');
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/theatres', theatreRoutes);
 app.use('/api/shows', showRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Health check route
 app.get('/', (req, res) => {

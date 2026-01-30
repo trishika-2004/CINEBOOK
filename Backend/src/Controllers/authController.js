@@ -1,14 +1,12 @@
 const User = require('../models/User');
 const { sendTokenResponse } = require('../Utils/tokenUtils');
 
-// @desc    Register user
-// @route   POST /api/auth/register
-// @access  Public
+
 exports.register = async (req, res, next) => {
   try {
     const { name, email, phone, password, role } = req.body;
 
-    // Check if user already exists
+    
     const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
     if (existingUser) {
       return res.status(400).json({
@@ -17,7 +15,7 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Create user
+    
     const user = await User.create({
       name,
       email,
@@ -35,14 +33,12 @@ exports.register = async (req, res, next) => {
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
+
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Validate email & password
+   
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -50,7 +46,7 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Check for user
+    
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
@@ -78,9 +74,7 @@ exports.login = async (req, res, next) => {
   }
 };
 
-// @desc    Get current logged in user
-// @route   GET /api/auth/me
-// @access  Private
+
 exports.getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
@@ -97,9 +91,7 @@ exports.getMe = async (req, res, next) => {
   }
 };
 
-// @desc    Update user details
-// @route   PUT /api/auth/updatedetails
-// @access  Private
+
 exports.updateDetails = async (req, res, next) => {
   try {
     const fieldsToUpdate = {
