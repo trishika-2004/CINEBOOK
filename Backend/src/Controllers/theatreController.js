@@ -1,7 +1,7 @@
-const Theater = require('../models/Theater');
+const Theatre = require('../models/Theatre');
 
-// @desc    Get all theaters
-// @route   GET /api/theaters
+// @desc    Get all theatres
+// @route   GET /api/theatres
 // @access  Public
 exports.getAllTheaters = async (req, res) => {
   try {
@@ -13,12 +13,12 @@ exports.getAllTheaters = async (req, res) => {
       query['location.city'] = { $regex: city, $options: 'i' };
     }
 
-    const theaters = await Theater.find(query).populate('owner', 'name email');
+    const theatres = await Theatre.find(query).populate('owner', 'name email');
 
     res.status(200).json({
       success: true,
-      count: theaters.length,
-      data: theaters
+      count: theatres.length,
+      data: theatres
     });
   } catch (error) {
     res.status(500).json({
@@ -28,23 +28,23 @@ exports.getAllTheaters = async (req, res) => {
   }
 };
 
-// @desc    Get single theater
-// @route   GET /api/theaters/:id
+// @desc    Get single theatre
+// @route   GET /api/theatres/:id
 // @access  Public
 exports.getTheater = async (req, res) => {
   try {
-    const theater = await Theater.findById(req.params.id).populate('owner', 'name email');
+    const theatre = await Theatre.findById(req.params.id).populate('owner', 'name email');
 
-    if (!theater) {
+    if (!theatre) {
       return res.status(404).json({
         success: false,
-        message: 'Theater not found'
+        message: 'Theatre not found'
       });
     }
 
     res.status(200).json({
       success: true,
-      data: theater
+      data: theatre
     });
   } catch (error) {
     res.status(500).json({
@@ -54,17 +54,17 @@ exports.getTheater = async (req, res) => {
   }
 };
 
-// @desc    Create theater
-// @route   POST /api/theaters
-// @access  Private/Theater-Owner
+// @desc    Create theatre
+// @route   POST /api/theatres
+// @access  Private/Theatre-Owner
 exports.createTheater = async (req, res) => {
   try {
     req.body.owner = req.user.id;
-    const theater = await Theater.create(req.body);
+    const theatre = await Theatre.create(req.body);
 
     res.status(201).json({
       success: true,
-      data: theater
+      data: theatre
     });
   } catch (error) {
     res.status(500).json({
@@ -74,36 +74,36 @@ exports.createTheater = async (req, res) => {
   }
 };
 
-// @desc    Update theater
-// @route   PUT /api/theaters/:id
+// @desc    Update theatre
+// @route   PUT /api/theatres/:id
 // @access  Private/Owner
 exports.updateTheater = async (req, res) => {
   try {
-    let theater = await Theater.findById(req.params.id);
+    let theatre = await Theatre.findById(req.params.id);
 
-    if (!theater) {
+    if (!theatre) {
       return res.status(404).json({
         success: false,
-        message: 'Theater not found'
+        message: 'Theatre not found'
       });
     }
 
-    // Make sure user is theater owner
-    if (theater.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+    // Make sure user is theatre owner
+    if (theatre.owner.toString() !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to update this theater'
+        message: 'Not authorized to update this theatre'
       });
     }
 
-    theater = await Theater.findByIdAndUpdate(req.params.id, req.body, {
+    theatre = await Theatre.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
     });
 
     res.status(200).json({
       success: true,
-      data: theater
+      data: theatre
     });
   } catch (error) {
     res.status(500).json({
@@ -113,33 +113,33 @@ exports.updateTheater = async (req, res) => {
   }
 };
 
-// @desc    Delete theater
-// @route   DELETE /api/theaters/:id
+// @desc    Delete theatre
+// @route   DELETE /api/theatres/:id
 // @access  Private/Owner
 exports.deleteTheater = async (req, res) => {
   try {
-    const theater = await Theater.findById(req.params.id);
+    const theatre = await Theatre.findById(req.params.id);
 
-    if (!theater) {
+    if (!theatre) {
       return res.status(404).json({
         success: false,
-        message: 'Theater not found'
+        message: 'Theatre not found'
       });
     }
 
-    // Make sure user is theater owner
-    if (theater.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+    // Make sure user is theatre owner
+    if (theatre.owner.toString() !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to delete this theater'
+        message: 'Not authorized to delete this theatre'
       });
     }
 
-    await Theater.findByIdAndUpdate(req.params.id, { isActive: false });
+    await Theatre.findByIdAndUpdate(req.params.id, { isActive: false });
 
     res.status(200).json({
       success: true,
-      message: 'Theater deleted successfully'
+      message: 'Theatre deleted successfully'
     });
   } catch (error) {
     res.status(500).json({

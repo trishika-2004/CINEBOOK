@@ -1,22 +1,23 @@
 const express = require('express');
 const {
-  getTheaters,
+  getAllTheaters,
   getTheater,
   createTheater,
   updateTheater,
   deleteTheater
-} = require('../controllers/theaterController');
-const { protect, authorize } = require('../middleware/auth');
+} = require('../Controllers/theatreController');
+
+const { protect, authorize } = require('../Middleware/auth');
 
 const router = express.Router();
 
-router.route('/')
-  .get(getTheaters)
-  .post(protect, authorize('admin'), createTheater);
+// Public routes
+router.get('/', getAllTheaters);
+router.get('/:id', getTheater);
 
-router.route('/:id')
-  .get(getTheater)
-  .put(protect, authorize('admin'), updateTheater)
-  .delete(protect, authorize('admin'), deleteTheater);
+// Protected routes
+router.post('/', protect, authorize('admin', 'theater-owner'), createTheater);
+router.put('/:id', protect, updateTheater);
+router.delete('/:id', protect, deleteTheater);
 
 module.exports = router;

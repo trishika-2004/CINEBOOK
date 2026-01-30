@@ -1,12 +1,12 @@
 const Show = require('../models/Show');
 const Movie = require('../models/Movie');
-const Theater = require('../models/Theater');
+const Theatre = require('../models/Theatre');
 
-
+// Helper function to generate seat array
 const generateSeats = (rows, columns) => {
   const seats = [];
   for (let i = 0; i < rows; i++) {
-    const rowLetter = String.fromCharCode(65 + i); // A, B, C, etc.
+    const rowLetter = String.fromCharCode(65 + i);
     for (let j = 1; j <= columns; j++) {
       seats.push(`${rowLetter}${j}`);
     }
@@ -14,24 +14,23 @@ const generateSeats = (rows, columns) => {
   return seats;
 };
 
-
-exports.getShows = async (req, res) => {
+// @desc    Get all shows
+// @route   GET /api/shows
+// @access  Public
+exports.getAllShows = async (req, res) => {
   try {
-    const { movieId, theaterId, date, city } = req.query;
+    const { movieId, theatreId, date, city } = req.query;
     
     let query = { status: 'active' };
 
-    
     if (movieId) {
       query.movie = movieId;
     }
 
-    
-    if (theaterId) {
-      query.theater = theaterId;
+    if (theatreId) {
+      query.theatre = theatreId;
     }
 
-    
     if (date) {
       const startDate = new Date(date);
       startDate.setHours(0, 0, 0, 0);
@@ -45,14 +44,13 @@ exports.getShows = async (req, res) => {
     }
 
     let shows = await Show.find(query)
-      .populate('movie', 'title posterUrl duration rating language')
-      .populate('theater', 'name location')
+      .populate('movie', 'title posterUrl duration censorRating language')
+      .populate('theatre', 'name location')
       .sort({ showDate: 1, showTime: 1 });
 
-    
     if (city) {
       shows = shows.filter(show => 
-        show.theater.location.city.toLowerCase().includes(city.toLowerCase())
+        show.theatre.location.city.toLowerCase().includes(city.toLowerCase())
       );
     }
 
@@ -69,12 +67,14 @@ exports.getShows = async (req, res) => {
   }
 };
 
-
+// @desc    Get single show
+// @route   GET /api/shows/:id
+// @access  Public
 exports.getShow = async (req, res) => {
   try {
     const show = await Show.findById(req.params.id)
       .populate('movie')
-      .populate('theater');
+      .populate('theatre');
 
     if (!show) {
       return res.status(404).json({
@@ -95,12 +95,13 @@ exports.getShow = async (req, res) => {
   }
 };
 
-
+// @desc    Create new show
+// @route   POST /api/shows
+// @access  Private/Admin
 exports.createShow = async (req, res) => {
   try {
-    const { movie, theater, screenNumber, showDate, showTime, pricing } = req.body;
+    const { movie, theatre, screenNumber, showDate, showTime, pricing } = req.body;
 
-    
     const movieExists = await Movie.findById(movie);
     if (!movieExists) {
       return res.status(404).json({
@@ -109,25 +110,22 @@ exports.createShow = async (req, res) => {
       });
     }
 
-    
-    const theaterExists = await Theater.findById(theater);
-    if (!theaterExists) {
+    const theatreExists = await Theatre.findById(theatre);
+    if (!theatreExists) {
       return res.status(404).json({
         success: false,
-        message: 'Theater not found'
+        message: 'Theatre not found'
       });
     }
 
-    
-    const screen = theaterExists.screens.find(s => s.screenNumber === screenNumber);
+    const screen = theatreExists.screens.find(s => s.screenNumber === screenNumber);
     if (!screen) {
       return res.status(404).json({
         success: false,
-        message: 'Screen not found in theater'
+        message: 'Screen not found in theatre'
       });
     }
 
-    
     const availableSeats = generateSeats(
       screen.seatLayout.rows, 
       screen.seatLayout.columns
@@ -135,7 +133,7 @@ exports.createShow = async (req, res) => {
 
     const show = await Show.create({
       movie,
-      theater,
+      theatre,
       screenNumber,
       showDate,
       showTime,
@@ -151,7 +149,7 @@ exports.createShow = async (req, res) => {
 
     const populatedShow = await Show.findById(show._id)
       .populate('movie')
-      .populate('theater');
+      .populate('theatre');
 
     res.status(201).json({
       success: true,
@@ -165,7 +163,9 @@ exports.createShow = async (req, res) => {
   }
 };
 
-
+// @desc    Update show
+// @route   PUT /api/shows/:id
+// @access  Private/Admin
 exports.updateShow = async (req, res) => {
   try {
     const show = await Show.findByIdAndUpdate(
@@ -196,7 +196,9 @@ exports.updateShow = async (req, res) => {
   }
 };
 
-
+// @desc    Delete show
+// @route   DELETE /api/shows/:id
+// @access  Private/Admin
 exports.deleteShow = async (req, res) => {
   try {
     const show = await Show.findByIdAndDelete(req.params.id);
@@ -221,11 +223,12 @@ exports.deleteShow = async (req, res) => {
   }
 };
 
-
+// @desc    Get available seats for a show
+// @route   GET /api/shows/:id/seats
+// @access  Public
 exports.getShowSeats = async (req, res) => {
   try {
-    const show = await Show.findById(req.params.id)
-      .populate('theater');
+    const show = await Show.findById(req.params.id).populate('theatre');
 
     if (!show) {
       return res.status(404).json({
@@ -234,8 +237,7 @@ exports.getShowSeats = async (req, res) => {
       });
     }
 
-    
-    const screen = show.theater.screens.find(s => s.screenNumber === show.screenNumber);
+    const screen = show.theatre.screens.find(s => s.screenNumber === show.screenNumber);
 
     res.status(200).json({
       success: true,

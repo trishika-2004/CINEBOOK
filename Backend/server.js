@@ -1,56 +1,64 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const morgan = require('morgan');
 const connectDB = require('./src/config/db');
-const errorHandle = require("./src/Middleware/errorhandle");
+const errorHandler = require('./src/Middleware/errorhandler');
 
-
+// Load env vars
 dotenv.config();
+
+// Connect to database
 connectDB();
+
+// Route files
+const authRoutes = require('./src/routes/authRoutes');
+const movieRoutes = require('./src/routes/movieRoutes');
+const theatreRoutes = require('./src/routes/theatreRoutes');
+const showRoutes = require('./src/routes/showRoutes');
+
 const app = express();
 
+// Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(cors());
+// Enable CORS
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
+}));
 
-// routes
-app.use('/api/auth', require('./src/routes/authRoutes'));
-app.use('/api/movies', require('./src/routes/movieRoutes'));
-app.use('/api/theaters', require('./src/routes/theaterRoutes'));
-app.use('/api/shows', require('./src/routes/showRoutes'));
-app.use('/api/bookings', require('./src/routes/bookingRoutes'));
-app.use('/api/payments', require('./src/routes/paymentRoutes'));
+// Dev logging middleware
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
 
+// Mount routers
+app.use('/api/auth', authRoutes);
+app.use('/api/movies', movieRoutes);
+app.use('/api/theatres', theatreRoutes);
+app.use('/api/shows', showRoutes);
+
+// Health check route
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Welcome to Cinebook API',
-    version: '1.0.0',
-    endpoints: {
-      auth: '/api/auth',
-      movies: '/api/movies',
-      theaters: '/api/theaters',
-      shows: '/api/shows',
-      bookings: '/api/bookings',
-      payments: '/api/payments'
-    }
+    message: 'CineBook API is running! 🎬'
   });
 });
 
-
+// Error handler (must be after routes)
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
-  console.log(`Cinebook API server running on port ${PORT}`);
+  console.log(`✅ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
-  console.log(`Error: ${err.message}`);
+  console.log(`❌ Error: ${err.message}`);
   server.close(() => process.exit(1));
 });
-
-module.exports = app;
