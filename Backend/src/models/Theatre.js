@@ -3,78 +3,34 @@ const mongoose = require('mongoose');
 const theaterSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: [true, 'Please provide theater name'],
-    trim: true
-  },
-  location: {
-    address: {
-      type: String,
-      required: true
-    },
-    city: {
-      type: String,
-      required: true
-    },
-    state: {
-      type: String,
-      required: true
-    },
-    pincode: {
-      type: String,
-      required: true
-    },
-    coordinates: {
-      latitude: Number,
-      longitude: Number
-    }
-  },
-  screens: [{
-    screenNumber: {
-      type: Number,
-      required: true
-    },
-    name: {
-      type: String,
-      required: true
-    },
-    totalSeats: {
-      type: Number,
-      required: true
-    },
-    seatLayout: {
-      rows: Number,
-      columns: Number,
-      seatTypes: [{
-        type: {
-          type: String, // 'Regular', 'Premium', 'Recliner'
-          required: true
-        },
-        price: {
-          type: Number,
-          required: true
-        },
-        seats: [String] // e.g., ['A1', 'A2', 'A3']
-      }]
-    }
-  }],
-  amenities: [String], // ['Parking', 'Food Court', 'Wheelchair Access']
-  owner: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
     required: true
   },
-  contactNumber: {
-    type: String,
-    required: true
+  totalSeats: {
+    type: Number,
+    default: 100
   },
-  isActive: {
-    type: Boolean,
-    default: true
+  rows: {
+    type: Number,
+    default: 10
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  seatsPerRow: {
+    type: Number,
+    default: 10
+  },
+  seats: {
+    type: [[String]],
+    default: () => {
+      const grid = [];
+      for (let i = 0; i < 10; i++) {
+        const row = [];
+        for (let j = 0; j < 10; j++) {
+          row.push('available');
+        }
+        grid.push(row);
+      }
+      return grid;
+    }
   }
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('Theater', theaterSchema);
