@@ -1,18 +1,20 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const http = require('http');
-const { Server } = require('socket.io');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import http from 'http';
+import { Server } from 'socket.io';
+import dotenv from 'dotenv';
+import prisma from './src/config/prisma.js';
 
-const userRoutes = require('./src/routes/userRoutes');
-const theatreRoutes = require('./src/routes/theatreRoutes');
-const bookingRoutes = require('./src/routes/bookingRoutes');
+// Import routes (removed userRoutes)
+import theatreRoutes from './src/routes/theatreRoutes.js';
+import bookingRoutes from './src/routes/bookingRoutes.js';
+
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
 
-
+// Socket.IO setup
 const io = new Server(server, {
   cors: {
     origin: 'http://localhost:3000',
@@ -20,30 +22,44 @@ const io = new Server(server, {
   }
 });
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-mongoose
-  .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/theatre-booking')
-  .then(() => console.log(' MongoDB connected'))
-  .catch(err => console.error(' MongoDB connection error:', err));
+// Test database connection
+async function testConnection() {
+  try {
+    await prisma.$connect();
+    console.log('✅ PostgreSQL connected via Prisma');
+  } catch (err) {
+    console.error('❌ Database connection error:', err);
+    process.exit(1);
+  }
+}
 
-app.use('/api/users', userRoutes);
+testConnection();
+
+// Routes (removed /api/users)
 app.use('/api/theatres', theatreRoutes);
 app.use('/api/bookings', bookingRoutes);
 
 app.get('/', (req, res) => {
-  res.json({ message: 'Theatre Booking API running' });
+  res.json({ 
+    message: 'Theatre Booking API running with PostgreSQL + Supabase Auth',
+    endpoints: {
+      theaters: '/api/theatres',
+      bookings: '/api/bookings'
+    }
+  });
 });
 
+// ============ SOCKET.IO - REAL-TIME SEAT LOCKING ============
 
 const lockedSeats = {};
-
 
 function getSeatKey(row, seat) {
   return `${row}-${seat}`;
 }
-
 
 function unlockSeat(theatreId, seatKey) {
   if (lockedSeats[theatreId] && lockedSeats[theatreId][seatKey]) {
@@ -55,20 +71,19 @@ function unlockSeat(theatreId, seatKey) {
   return false;
 }
 
-
 io.on('connection', (socket) => {
-  console.log(' User connected:', socket.id);
+  console.log('👤 User connected:', socket.id);
 
-  
+  // Join theater room
   socket.on('join-theater', ({ theaterId, userId, username }) => {
     socket.join(theaterId);
     socket.theaterId = theaterId;
     socket.userId = userId;
     socket.username = username;
 
-    console.log(` ${username} joined theatre ${theaterId}`);
+    console.log(`🎬 ${username} joined theatre ${theaterId}`);
 
-    
+    // Send current locked seats to new user
     if (lockedSeats[theaterId]) {
       const currentLocks = {};
       Object.keys(lockedSeats[theaterId]).forEach(seatKey => {
@@ -82,7 +97,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  
+  // Lock seats
   socket.on('lock-seats', ({ theaterId, seats, userId, username }) => {
     if (!lockedSeats[theaterId]) {
       lockedSeats[theaterId] = {};
@@ -92,20 +107,20 @@ io.on('connection', (socket) => {
 
     seats.forEach(({ row, seat }) => {
       const seatKey = getSeatKey(row, seat);
-      
-      
+
+      // Only lock if seat is not locked by another user
       if (!lockedSeats[theaterId][seatKey] || lockedSeats[theaterId][seatKey].userId === userId) {
-        
+        // Clear existing timeout if re-locking
         if (lockedSeats[theaterId][seatKey]?.timeout) {
           clearTimeout(lockedSeats[theaterId][seatKey].timeout);
         }
 
-        
+        // Auto-unlock after 2 minutes
         const timeout = setTimeout(() => {
           unlockSeat(theaterId, seatKey);
           io.to(theaterId).emit('seat-unlocked', { seatKey, row, seat });
-          console.log(`Auto-unlocked seat ${seatKey} in theatre ${theaterId}`);
-        }, 2 * 60 * 1000); 
+          console.log(`⏰ Auto-unlocked seat ${seatKey} in theatre ${theaterId}`);
+        }, 2 * 60 * 1000);
 
         lockedSeats[theaterId][seatKey] = {
           userId,
@@ -118,17 +133,17 @@ io.on('connection', (socket) => {
       }
     });
 
-    
+    // Broadcast to all users in theater
     io.to(theaterId).emit('seats-locked', {
       seats: lockedSeatsList,
       userId,
       username
     });
 
-    console.log(` ${username} locked ${lockedSeatsList.length} seats in theatre ${theaterId}`);
+    console.log(`🔒 ${username} locked ${lockedSeatsList.length} seats in theatre ${theaterId}`);
   });
 
-  
+  // Unlock seats
   socket.on('unlock-seats', ({ theaterId, seats, userId }) => {
     if (!lockedSeats[theaterId]) return;
 
@@ -138,22 +153,23 @@ io.on('connection', (socket) => {
       const seatKey = getSeatKey(row, seat);
       const lock = lockedSeats[theaterId][seatKey];
 
-      
+      // Only unlock if user owns the lock
       if (lock && lock.userId === userId) {
         unlockSeat(theaterId, seatKey);
         unlockedSeats.push({ row, seat, seatKey });
       }
     });
 
-    
+    // Broadcast unlock to all users
     io.to(theaterId).emit('seats-unlocked', {
       seats: unlockedSeats,
       userId
     });
 
-    console.log(` User ${userId} unlocked ${unlockedSeats.length} seats in theatre ${theaterId}`);
+    console.log(`🔓 User ${userId} unlocked ${unlockedSeats.length} seats in theatre ${theaterId}`);
   });
 
+  // Clear locks after successful booking
   socket.on('booking-completed', ({ theaterId, userId }) => {
     if (!lockedSeats[theaterId]) return;
 
@@ -168,9 +184,10 @@ io.on('connection', (socket) => {
       }
     });
 
-    console.log(` Cleared ${clearedSeats.length} locked seats after booking completion`);
+    console.log(`✅ Cleared ${clearedSeats.length} locked seats after booking completion`);
   });
 
+  // Handle disconnect - auto-unlock user's seats
   socket.on('disconnect', () => {
     console.log('🔌 User disconnected:', socket.id);
 
@@ -192,15 +209,24 @@ io.on('connection', (socket) => {
           seats: clearedSeats,
           userId
         });
-        console.log(` Auto-unlocked ${clearedSeats.length} seats on disconnect`);
+        console.log(`🔓 Auto-unlocked ${clearedSeats.length} seats on disconnect`);
       }
     }
   });
 });
 
-
+// Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(` Server running on port ${PORT}`);
-  console.log(` Socket.IO enabled for real-time seat locking`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`⚡ Socket.IO enabled for real-time seat locking`);
+  console.log(`🔐 Using Supabase Authentication`);
+  console.log(`🎬 Theater Booking API ready!`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  await prisma.$disconnect();
+  process.exit(0);
 });

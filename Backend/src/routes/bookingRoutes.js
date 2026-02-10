@@ -1,15 +1,20 @@
-const express = require('express');
+import express from 'express';
+import prisma from '../config/prisma.js';
+import { verifySupabaseAuth } from '../Middleware/supabaseAuth.js';
+
 const router = express.Router();
-const Booking = require('../models/Booking');
-const Theater = require('../models/Theatre');
-const authMiddleware = require('../Middleware/auth');
 
 // Get user's bookings for specific theater
-router.get('/user/:userId/theater/:theaterId', authMiddleware, async (req, res) => {
+router.get('/user/:userId/theater/:theaterId', verifySupabaseAuth, async (req, res) => {
   try {
-    const bookings = await Booking.find({
-      userId: req.params.userId,
-      theaterId: req.params.theaterId
+    const bookings = await prisma.booking.findMany({
+      where: {
+        userId: req.params.userId, // Now string UUID
+        theaterId: parseInt(req.params.theaterId)
+      },
+      include: {
+        theater: true
+      }
     });
     res.json(bookings);
   } catch (error) {
@@ -18,85 +23,92 @@ router.get('/user/:userId/theater/:theaterId', authMiddleware, async (req, res) 
   }
 });
 
-/**
- * Find consecutive seats across multiple rows
- * Books seats horizontally row by row until all seats are booked
- * @param {Array} seats - 2D array of seat status
- * @param {Number} numberOfSeats - Number of seats to book
- * @returns {Array|null} - Array of seat positions or null if cannot book
- */
+// Get my bookings
+router.get('/my-bookings', verifySupabaseAuth, async (req, res) => {
+  try {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        userId: req.user.id // Supabase user UUID
+      },
+      include: {
+        theater: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    res.json(bookings);
+  } catch (error) {
+    console.error('Error fetching user bookings:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Seat finding function (unchanged)
 function findSeatsMultipleRows(seats, numberOfSeats) {
   const seatNumbers = [];
   let seatsNeeded = numberOfSeats;
-  
+
   console.log(`\n=== BOOKING REQUEST ===`);
   console.log(`Seats requested: ${numberOfSeats}`);
-  
-  // Go through each row
+
   for (let row = 0; row < seats.length && seatsNeeded > 0; row++) {
-    // Find the longest consecutive sequence of available seats in this row
     let consecutiveStart = -1;
     let consecutiveCount = 0;
     let maxConsecutive = 0;
     let maxConsecutiveStart = -1;
-    
-    // Scan through the row to find longest consecutive available seats
+
     for (let seat = 0; seat < seats[row].length; seat++) {
       if (seats[row][seat] === 'available') {
         if (consecutiveStart === -1) {
           consecutiveStart = seat;
         }
         consecutiveCount++;
-        
-        // Update max if current sequence is longer
+
         if (consecutiveCount > maxConsecutive) {
           maxConsecutive = consecutiveCount;
           maxConsecutiveStart = consecutiveStart;
         }
       } else {
-        // Reset when we hit a booked seat
         consecutiveStart = -1;
         consecutiveCount = 0;
       }
     }
-    
-    // If we found consecutive seats in this row, book them
+
     if (maxConsecutive > 0) {
-      // Book either all available consecutive seats or only what we need
       const seatsToBook = Math.min(seatsNeeded, maxConsecutive);
-      
+
       console.log(`Row ${row + 1}: Found ${maxConsecutive} consecutive seats at position ${maxConsecutiveStart + 1}, booking ${seatsToBook} seats`);
-      
+
       for (let i = 0; i < seatsToBook; i++) {
-        seatNumbers.push({ 
-          row: row, 
-          seat: maxConsecutiveStart + i 
+        seatNumbers.push({
+          row: row,
+          seat: maxConsecutiveStart + i
         });
       }
-      
+
       seatsNeeded -= seatsToBook;
       console.log(`Remaining seats needed: ${seatsNeeded}`);
     }
   }
-  
-  // Check if we successfully booked all requested seats
+
   if (seatsNeeded > 0) {
     console.log(`❌ FAILED: Could not find ${seatsNeeded} more consecutive seats`);
     return null;
   }
-  
+
   console.log(`✅ SUCCESS: Found all ${seatNumbers.length} seats`);
   console.log('Seat allocation:', seatNumbers.map(s => `Row ${s.row + 1} Seat ${s.seat + 1}`).join(', '));
   console.log(`======================\n`);
-  
+
   return seatNumbers;
 }
 
 // Create booking
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', verifySupabaseAuth, async (req, res) => {
   try {
     const { theaterId, numberOfSeats } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user.id; // Supabase UUID (string)
 
     console.log(`\n📝 New booking request:`);
     console.log(`User ID: ${userId}`);
@@ -104,14 +116,20 @@ router.post('/', authMiddleware, async (req, res) => {
     console.log(`Seats requested: ${numberOfSeats}`);
 
     // Find theater
-    const theater = await Theater.findById(theaterId);
+    const theater = await prisma.theater.findUnique({
+      where: { id: parseInt(theaterId) }
+    });
+
     if (!theater) {
       return res.status(404).json({ message: 'Theater not found' });
     }
 
+    // Get seats from JSON field
+    const seats = theater.seats;
+
     // Count total available seats
     let availableSeats = 0;
-    theater.seats.forEach(row => {
+    seats.forEach(row => {
       row.forEach(seat => {
         if (seat === 'available') availableSeats++;
       });
@@ -128,8 +146,8 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     // Find consecutive seats across rows
-    const seatNumbers = findSeatsMultipleRows(theater.seats, numberOfSeats);
-    
+    const seatNumbers = findSeatsMultipleRows(seats, numberOfSeats);
+
     if (!seatNumbers) {
       console.log(`❌ Cannot find consecutive seats`);
       return res.status(400).json({
@@ -139,21 +157,30 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // Update theater seats to 'booked'
     seatNumbers.forEach(({ row, seat }) => {
-      theater.seats[row][seat] = 'booked';
+      seats[row][seat] = 'booked';
     });
 
-    await theater.save();
+    // Update theater with new seats array
+    await prisma.theater.update({
+      where: { id: parseInt(theaterId) },
+      data: { seats: seats }
+    });
+
     console.log(`✅ Theater seats updated`);
 
     // Create booking record
-    const booking = new Booking({
-      userId,
-      theaterId,
-      numberOfSeats,
-      seatNumbers
+    const booking = await prisma.booking.create({
+      data: {
+        userId, // String UUID from Supabase
+        theaterId: parseInt(theaterId),
+        numberOfSeats,
+        seatNumbers: seatNumbers
+      },
+      include: {
+        theater: true
+      }
     });
 
-    await booking.save();
     console.log(`✅ Booking created: ${booking.bookingId}`);
 
     res.status(201).json({
@@ -167,4 +194,4 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

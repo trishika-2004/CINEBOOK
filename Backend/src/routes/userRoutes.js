@@ -1,35 +1,34 @@
-const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import prisma from '../config/prisma.js';
 
-// Register new user
+const router = express.Router();
+
 router.post('/register', async (req, res) => {
   try {
     const { username, password, role } = req.body;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ username });
+    const existingUser = await prisma.user.findUnique({
+      where: { username }
+    });
+
     if (existingUser) {
       return res.status(400).json({ message: 'Username already exists' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Create new user
-    const user = new User({
-      username,
-      password: hashedPassword,
-      role: role || 'user'
+
+    const user = await prisma.user.create({
+      data: {
+        username,
+        password: hashedPassword,
+        role: role || 'user'
+      }
     });
 
-    await user.save();
-
-    // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, username: user.username, role: user.role },
+      { userId: user.id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -37,7 +36,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({
       message: 'User registered successfully',
       token,
-      user: { id: user._id, username: user.username, role: user.role }
+      user: { id: user.id, username: user.username, role: user.role }
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -45,26 +44,25 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login user
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Find user
-    const user = await User.findOne({ username });
+    const user = await prisma.user.findUnique({
+      where: { username }
+    });
+
     if (!user) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, username: user.username, role: user.role },
+      { userId: user.id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -72,7 +70,7 @@ router.post('/login', async (req, res) => {
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user._id, username: user.username, role: user.role }
+      user: { id: user.id, username: user.username, role: user.role }
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -80,4 +78,4 @@ router.post('/login', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
