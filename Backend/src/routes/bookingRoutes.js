@@ -9,7 +9,7 @@ router.get('/user/:userId/theater/:theaterId', verifySupabaseAuth, async (req, r
   try {
     const bookings = await prisma.booking.findMany({
       where: {
-        userId: req.params.userId, // Now string UUID
+        userId: req.params.userId,
         theaterId: parseInt(req.params.theaterId)
       },
       include: {
@@ -23,21 +23,42 @@ router.get('/user/:userId/theater/:theaterId', verifySupabaseAuth, async (req, r
   }
 });
 
-// Get my bookings
+// Get my bookings with pagination and sorting
 router.get('/my-bookings', verifySupabaseAuth, async (req, res) => {
   try {
-    const bookings = await prisma.booking.findMany({
-      where: {
-        userId: req.user.id // Supabase user UUID
-      },
-      include: {
-        theater: true
-      },
-      orderBy: {
-        createdAt: 'desc'
+    const { 
+      page = 1, 
+      limit = 10, 
+      sortBy = 'createdAt', 
+      sortOrder = 'desc' 
+    } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+
+    const orderBy = {};
+    orderBy[sortBy] = sortOrder;
+
+    const [bookings, total] = await Promise.all([
+      prisma.booking.findMany({
+        where: { userId: req.user.id },
+        skip,
+        take,
+        orderBy,
+        include: { theater: true }
+      }),
+      prisma.booking.count({ where: { userId: req.user.id } })
+    ]);
+
+    res.json({
+      data: bookings,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
       }
     });
-    res.json(bookings);
   } catch (error) {
     console.error('Error fetching user bookings:', error);
     res.status(500).json({ message: error.message });
@@ -108,14 +129,13 @@ function findSeatsMultipleRows(seats, numberOfSeats) {
 router.post('/', verifySupabaseAuth, async (req, res) => {
   try {
     const { theaterId, numberOfSeats } = req.body;
-    const userId = req.user.id; // Supabase UUID (string)
+    const userId = req.user.id;
 
     console.log(`\n📝 New booking request:`);
     console.log(`User ID: ${userId}`);
     console.log(`Theater ID: ${theaterId}`);
     console.log(`Seats requested: ${numberOfSeats}`);
 
-    // Find theater
     const theater = await prisma.theater.findUnique({
       where: { id: parseInt(theaterId) }
     });
@@ -124,10 +144,8 @@ router.post('/', verifySupabaseAuth, async (req, res) => {
       return res.status(404).json({ message: 'Theater not found' });
     }
 
-    // Get seats from JSON field
     const seats = theater.seats;
 
-    // Count total available seats
     let availableSeats = 0;
     seats.forEach(row => {
       row.forEach(seat => {
@@ -137,7 +155,6 @@ router.post('/', verifySupabaseAuth, async (req, res) => {
 
     console.log(`Available seats in theater: ${availableSeats}/${theater.totalSeats}`);
 
-    // Check if sufficient seats available
     if (numberOfSeats > availableSeats) {
       console.log(`❌ Not enough seats available`);
       return res.status(400).json({
@@ -145,7 +162,6 @@ router.post('/', verifySupabaseAuth, async (req, res) => {
       });
     }
 
-    // Find consecutive seats across rows
     const seatNumbers = findSeatsMultipleRows(seats, numberOfSeats);
 
     if (!seatNumbers) {
@@ -155,12 +171,10 @@ router.post('/', verifySupabaseAuth, async (req, res) => {
       });
     }
 
-    // Update theater seats to 'booked'
     seatNumbers.forEach(({ row, seat }) => {
       seats[row][seat] = 'booked';
     });
 
-    // Update theater with new seats array
     await prisma.theater.update({
       where: { id: parseInt(theaterId) },
       data: { seats: seats }
@@ -168,10 +182,9 @@ router.post('/', verifySupabaseAuth, async (req, res) => {
 
     console.log(`✅ Theater seats updated`);
 
-    // Create booking record
     const booking = await prisma.booking.create({
       data: {
-        userId, // String UUID from Supabase
+        userId,
         theaterId: parseInt(theaterId),
         numberOfSeats,
         seatNumbers: seatNumbers

@@ -7,10 +7,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Remove the User model - Supabase handles this!
-// Supabase has built-in auth.users table
-
-// Theater Model (NO CHANGES)
 model Theater {
   id           Int       @id @default(autoincrement())
   name         String
@@ -23,11 +19,10 @@ model Theater {
   bookings     Booking[]
 }
 
-// Booking Model - Link to Supabase auth.users
 model Booking {
   id             Int      @id @default(autoincrement())
   bookingId      String   @unique @default(cuid())
-  userId         String   // ← Changed to String (Supabase user UUID)
+  userId         String   
   theaterId      Int
   numberOfSeats  Int
   seatNumbers    Json
@@ -35,4 +30,8 @@ model Booking {
   updatedAt      DateTime @updatedAt
   
   theater        Theater  @relation(fields: [theaterId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([theaterId])
+  @@index([createdAt])
 }

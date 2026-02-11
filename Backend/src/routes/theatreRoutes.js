@@ -4,28 +4,63 @@ import { verifySupabaseAuth } from '../Middleware/supabaseAuth.js';
 
 const router = express.Router();
 
-// Get all theaters
 router.get('/', verifySupabaseAuth, async (req, res) => {
   try {
-    const theaters = await prisma.theater.findMany({
-      select: {
-        id: true,
-        name: true,
-        totalSeats: true,
-        rows: true,
-        seatsPerRow: true,
-        createdAt: true,
-        updatedAt: true
+    const { 
+      page = 1, 
+      limit = 10, 
+      sortBy = 'name', 
+      sortOrder = 'asc',
+      search = ''
+    } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+
+    const where = search ? {
+      name: {
+        contains: search,
+        mode: 'insensitive'
+      }
+    } : {};
+
+    const orderBy = {};
+    orderBy[sortBy] = sortOrder;
+
+    const [theaters, total] = await Promise.all([
+      prisma.theater.findMany({
+        where,
+        skip,
+        take,
+        orderBy,
+        select: {
+          id: true,
+          name: true,
+          totalSeats: true,
+          rows: true,
+          seatsPerRow: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      }),
+      prisma.theater.count({ where })
+    ]);
+
+    res.json({
+      data: theaters,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
       }
     });
-    res.json(theaters);
   } catch (error) {
     console.error('Error fetching theaters:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// Get theater by ID with seat availability
 router.get('/:id', verifySupabaseAuth, async (req, res) => {
   try {
     const theater = await prisma.theater.findUnique({
@@ -36,7 +71,6 @@ router.get('/:id', verifySupabaseAuth, async (req, res) => {
       return res.status(404).json({ message: 'Theater not found' });
     }
 
-    // Count available seats
     let availableSeats = 0;
     const seats = theater.seats;
 
@@ -56,10 +90,10 @@ router.get('/:id', verifySupabaseAuth, async (req, res) => {
   }
 });
 
-// Create new theater (admin only)
+
 router.post('/', verifySupabaseAuth, async (req, res) => {
   try {
-    // Check if user is admin (from Supabase user_metadata)
+    
     const userRole = req.user.user_metadata?.role;
     
     if (userRole !== 'admin') {
@@ -68,7 +102,7 @@ router.post('/', verifySupabaseAuth, async (req, res) => {
 
     const { name, totalSeats, rows, seatsPerRow } = req.body;
 
-    // Generate initial seat grid
+    
     const seatGrid = [];
     const rowCount = rows || 10;
     const seatsPerRowCount = seatsPerRow || 10;
@@ -91,10 +125,10 @@ router.post('/', verifySupabaseAuth, async (req, res) => {
       }
     });
 
-    console.log('✅ Theater created:', theater.name);
+    console.log(' Theater created:', theater.name);
     res.status(201).json(theater);
   } catch (error) {
-    console.error('❌ Error creating theater:', error);
+    console.error(' Error creating theater:', error);
     res.status(500).json({ message: error.message });
   }
 });
