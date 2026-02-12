@@ -5,6 +5,8 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import prisma from './src/config/prisma.js';
 
+// Import routes
+import adminRoutes from './src/routes/adminRoutes.js';
 import theatreRoutes from './src/routes/theatreRoutes.js';
 import bookingRoutes from './src/routes/bookingRoutes.js';
 import profileRoutes from './src/routes/profileRoutes.js';
@@ -14,7 +16,7 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-
+// Socket.IO setup
 const io = new Server(server, {
   cors: {
     origin: 'http://localhost:3000',
@@ -40,14 +42,16 @@ async function testConnection() {
 testConnection();
 
 // Routes
-app.use('/api/profile', profileRoutes);
-app.use('/api/theatres', theatreRoutes);
-app.use('/api/bookings', bookingRoutes);
+app.use('/api/admin', adminRoutes);        // Admin Dashboard Routes
+app.use('/api/profile', profileRoutes);    // Profile Routes
+app.use('/api/theatres', theatreRoutes);   // Theater Routes
+app.use('/api/bookings', bookingRoutes);   // Booking Routes
 
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Theatre Booking API running with PostgreSQL + Supabase Auth',
     endpoints: {
+      admin: '/api/admin',
       profile: '/api/profile',
       theaters: '/api/theatres',
       bookings: '/api/bookings'
@@ -225,6 +229,7 @@ server.listen(PORT, () => {
   console.log(`🔐 Using Supabase Authentication`);
   console.log(`👤 Profile management enabled`);
   console.log(`📄 Pagination & Sorting enabled`);
+  console.log(`📊 Admin Dashboard enabled`);
   console.log(`🎬 Theater Booking API ready!`);
 });
 
